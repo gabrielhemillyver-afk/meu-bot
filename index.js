@@ -1,17 +1,28 @@
-require('dotenv').config()
+// ==========================================
+// BOT ORG COMPLETO - INDEX.JS
+// COLOQUE TUDO ISSO NO INDEX.JS
+// ==========================================
+
+require("dotenv").config();
 
 const {
 Client,
 GatewayIntentBits,
+Partials,
 PermissionsBitField,
 ChannelType,
 EmbedBuilder,
 ActionRowBuilder,
 ButtonBuilder,
-ButtonStyle
-} = require('discord.js')
-
-const QRCode = require('qrcode')
+ButtonStyle,
+SlashCommandBuilder,
+REST,
+Routes,
+ModalBuilder,
+TextInputBuilder,
+TextInputStyle,
+InteractionType
+} = require("discord.js");
 
 const client = new Client({
 intents: [
@@ -19,546 +30,700 @@ GatewayIntentBits.Guilds,
 GatewayIntentBits.GuildMessages,
 GatewayIntentBits.MessageContent,
 GatewayIntentBits.GuildMembers
-]
-})
+],
+partials: [Partials.Channel]
+});
 
-const filas = {}
-const apostas = {}
-const mediadores = []
-const perfis = {}
+const filas = {
+mobile1v1: [],
+};
 
-client.once('ready', () => {
-console.log('BOT ONLINE')
-})
+const mediadores = [];
 
-// =========================================
+const pixMediadores = new Map();
+
+client.once("ready", async () => {
+
+console.log(`✅ ${client.user.tag} ONLINE`);
+
+const commands = [
+
+new SlashCommandBuilder()
+.setName("org")
+.setDescription("Criar organização"),
+
+new SlashCommandBuilder()
+.setName("configurar")
+.setDescription("Configurar sistema"),
+
+new SlashCommandBuilder()
+.setName("limpar")
+.setDescription("Limpar mensagens"),
+
+].map(cmd => cmd.toJSON());
+
+const rest = new REST({ version: "10" })
+.setToken(process.env.TOKEN);
+
+try {
+
+await rest.put(
+Routes.applicationCommands(client.user.id),
+{ body: commands }
+);
+
+console.log("✅ Slash Commands carregados");
+
+} catch (err) {
+console.log(err);
+}
+
+});
+
+// ==========================================
 // COMANDOS
-// =========================================
-
-client.on('messageCreate', async message => {
-
-if (message.author.bot) return
-
-// =========================================
-// !ORG
-// =========================================
-
-if (message.content === '!org') {
-
-if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-return
-}
-
-const cargos = [
-'DONO',
-'SUB DONO',
-'CEO',
-'GERENTE',
-'DIRETOR',
-'DIR SS',
-'ADM',
-'SUP',
-'SS MOBILE',
-'SS EMULADOR',
-'MEDIADOR'
-]
-
-for (const cargo of cargos) {
-
-if (!message.guild.roles.cache.find(r => r.name === cargo)) {
-
-await message.guild.roles.create({
-name: cargo,
-color: 'Random'
-})
-}
-}
-
-// =========================================
-// CATEGORIAS
-// =========================================
-
-const catFila = await message.guild.channels.create({
-name: '🎮 FILAS',
-type: ChannelType.GuildCategory
-})
-
-const catAposta = await message.guild.channels.create({
-name: '💸 APOSTAS',
-type: ChannelType.GuildCategory
-})
-
-const catMedia = await message.guild.channels.create({
-name: '🎧 MEDIAÇÃO',
-type: ChannelType.GuildCategory
-})
-
-const catSS = await message.guild.channels.create({
-name: '🛡️ SS',
-type: ChannelType.GuildCategory
-})
-
-// =========================================
-// CANAIS FILA
-// =========================================
-
-const canais = [
-
-'1x1-mobile',
-'2x2-mobile',
-'3x3-mobile',
-'4x4-mobile',
-
-'1x1-misto',
-'2x2-misto',
-'3x3-misto',
-'4x4-misto',
-
-'1x1-emulador',
-'2x2-emulador',
-'3x3-emulador',
-'4x4-emulador'
-]
-
-for (const nome of canais) {
-
-const canal = await message.guild.channels.create({
-name: nome,
-type: ChannelType.GuildText,
-parent: catFila.id
-})
-
-const embed = new EmbedBuilder()
-.setTitle('🎮 FILA DE APOSTA')
-.setDescription(`
-Modo:
-${nome}
-
-Clique abaixo para entrar na fila.
-`)
-.setThumbnail(message.guild.iconURL())
-.setColor('#00ff88')
-
-const row = new ActionRowBuilder()
-.addComponents(
-
-new ButtonBuilder()
-.setCustomId(`fila_${nome}`)
-.setLabel('Entrar na fila')
-.setStyle(ButtonStyle.Success),
-
-new ButtonBuilder()
-.setCustomId(`sair_${nome}`)
-.setLabel('Sair da fila')
-.setStyle(ButtonStyle.Danger)
-)
-
-await canal.send({
-embeds: [embed],
-components: [row]
-})
-}
-
-// =========================================
-// CANAL MEDIADOR
-// =========================================
-
-await message.guild.channels.create({
-name: 'fila-mediadores',
-type: ChannelType.GuildText,
-parent: catMedia.id
-})
-
-// =========================================
-// CANAL SS
-// =========================================
-
-await message.guild.channels.create({
-name: 'solicitacao-ss',
-type: ChannelType.GuildText,
-parent: catSS.id
-})
-
-message.reply('ORG CRIADA.')
-}
-
-// =========================================
-// .P
-// =========================================
-
-if (message.content.startsWith('.p')) {
-
-const user = message.mentions.users.first() || message.author
-
-if (!perfis[user.id]) {
-perfis[user.id] = {
-wins: 0,
-loses: 0
-}
-}
-
-const perfil = perfis[user.id]
-
-const embed = new EmbedBuilder()
-.setTitle(`PERFIL DE ${user.username}`)
-.setDescription(`
-🏆 Vitórias: ${perfil.wins}
-
-❌ Derrotas: ${perfil.loses}
-`)
-.setThumbnail(user.displayAvatarURL())
-.setColor('#00ff88')
-
-message.reply({
-embeds: [embed]
-})
-}
-
-// =========================================
-// .SSMOB
-// =========================================
-
-if (message.content === '.ssmob') {
-
-const canal = message.guild.channels.cache.find(
-c => c.name === 'solicitacao-ss'
-)
-
-const embed = new EmbedBuilder()
-.setTitle('🛡️ SOLICITAÇÃO SS MOBILE')
-.setDescription(`
-Solicitado por:
-${message.author}
-`)
-.setColor('#00ff88')
-
-const row = new ActionRowBuilder()
-.addComponents(
-
-new ButtonBuilder()
-.setCustomId(`aceitar_ss_${message.author.id}`)
-.setLabel('Aceitar')
-.setStyle(ButtonStyle.Success)
-)
-
-canal.send({
-embeds: [embed],
-components: [row]
-})
-
-message.reply('SS solicitada.')
-}
-
-// =========================================
-// .SSEMU
-// =========================================
-
-if (message.content === '.ssemu') {
-
-const canal = message.guild.channels.cache.find(
-c => c.name === 'solicitacao-ss'
-)
-
-const embed = new EmbedBuilder()
-.setTitle('🛡️ SOLICITAÇÃO SS EMULADOR')
-.setDescription(`
-Solicitado por:
-${message.author}
-`)
-.setColor('#00ff88')
-
-const row = new ActionRowBuilder()
-.addComponents(
-
-new ButtonBuilder()
-.setCustomId(`aceitar_ss_${message.author.id}`)
-.setLabel('Aceitar')
-.setStyle(ButtonStyle.Success)
-)
-
-canal.send({
-embeds: [embed],
-components: [row]
-})
-
-message.reply('SS solicitada.')
-}
-
-// =========================================
-// /LIMPAR
-// =========================================
-
-if (message.content === '/limpar') {
-
-if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-return
-}
-
-await message.channel.bulkDelete(100)
-
-message.channel.send('Canal limpo.')
-}
-})
-
-// =========================================
-// BOTÕES
-// =========================================
-
-client.on('interactionCreate', async interaction => {
-
-if (!interaction.isButton()) return
-
-// =========================================
-// FILA
-// =========================================
-
-if (interaction.customId.startsWith('fila_')) {
-
-const fila = interaction.customId
-
-if (!filas[fila]) {
-filas[fila] = []
-}
-
-if (filas[fila].includes(interaction.user.id)) {
-
-return interaction.reply({
-content: 'Você já entrou.',
+// ==========================================
+
+client.on("interactionCreate", async (interaction) => {
+
+// ==========================================
+// /ORG
+// ==========================================
+
+if (
+interaction.isChatInputCommand() &&
+interaction.commandName === "org"
+) {
+
+if (!interaction.member.permissions.has(
+PermissionsBitField.Flags.Administrator
+)) return interaction.reply({
+content: "❌ Sem permissão",
 ephemeral: true
-})
-}
-
-filas[fila].push(interaction.user.id)
+});
 
 await interaction.reply({
-content: 'Entrou na fila.',
+content: "⚙️ Criando organização...",
 ephemeral: true
-})
+});
 
-// =========================================
-// MATCH
-// =========================================
+const guild = interaction.guild;
 
-if (filas[fila].length >= 2) {
+// ==========================================
+// CARGOS
+// ==========================================
 
-const jogadores = filas[fila].splice(0, 2)
+const cargos = {};
+
+cargos.dono = await guild.roles.create({
+name: "DONO",
+color: "#000000"
+});
+
+cargos.sub = await guild.roles.create({
+name: "SUB DONO",
+color: "#2f3136"
+});
+
+cargos.ceo = await guild.roles.create({
+name: "CEO",
+color: "#00ff00"
+});
+
+cargos.gerente = await guild.roles.create({
+name: "GERENTE",
+color: "#ff0000"
+});
+
+cargos.admin = await guild.roles.create({
+name: "ADM",
+color: "#0011ff"
+});
+
+cargos.sup = await guild.roles.create({
+name: "SUP",
+color: "#7a00ff"
+});
+
+cargos.ss = await guild.roles.create({
+name: "SS",
+color: "#00c3ff"
+});
+
+cargos.mediador = await guild.roles.create({
+name: "MEDIADOR",
+color: "#ffaa00"
+});
+
+// ==========================================
+// CATEGORIAS
+// ==========================================
+
+const mobile = await guild.channels.create({
+name: "📱 mobile",
+type: ChannelType.GuildCategory
+});
+
+const misto = await guild.channels.create({
+name: "💻 misto",
+type: ChannelType.GuildCategory
+});
+
+const emulador = await guild.channels.create({
+name: "🖥 emulador",
+type: ChannelType.GuildCategory
+});
+
+const mediador = await guild.channels.create({
+name: "🏦 mediador",
+type: ChannelType.GuildCategory
+});
+
+// ==========================================
+// FILAS MOBILE
+// ==========================================
+
+const mobile1 = await guild.channels.create({
+name: "🎰1x1-mobile",
+type: ChannelType.GuildText,
+parent: mobile.id
+});
+
+await guild.channels.create({
+name: "🎰2x2-mobile",
+type: ChannelType.GuildText,
+parent: mobile.id
+});
+
+await guild.channels.create({
+name: "🎰3x3-mobile",
+type: ChannelType.GuildText,
+parent: mobile.id
+});
+
+await guild.channels.create({
+name: "🎰4x4-mobile",
+type: ChannelType.GuildText,
+parent: mobile.id
+});
+
+// ==========================================
+// FILAS MISTO
+// ==========================================
+
+await guild.channels.create({
+name: "💻2x2-misto",
+type: ChannelType.GuildText,
+parent: misto.id
+});
+
+await guild.channels.create({
+name: "💻3x3-misto",
+type: ChannelType.GuildText,
+parent: misto.id
+});
+
+await guild.channels.create({
+name: "💻4x4-misto",
+type: ChannelType.GuildText,
+parent: misto.id
+});
+
+// ==========================================
+// FILAS EMULADOR
+// ==========================================
+
+await guild.channels.create({
+name: "🖥1x1-emulador",
+type: ChannelType.GuildText,
+parent: emulador.id
+});
+
+await guild.channels.create({
+name: "🖥2x2-emulador",
+type: ChannelType.GuildText,
+parent: emulador.id
+});
+
+await guild.channels.create({
+name: "🖥3x3-emulador",
+type: ChannelType.GuildText,
+parent: emulador.id
+});
+
+// ==========================================
+// CANAIS MEDIADOR
+// ==========================================
+
+const filaMediador = await guild.channels.create({
+name: "👥fila-mediador",
+type: ChannelType.GuildText,
+parent: mediador.id
+});
+
+const pixCanal = await guild.channels.create({
+name: "💸configurar-pix",
+type: ChannelType.GuildText,
+parent: mediador.id
+});
+
+// ==========================================
+// PAINEL FILA MEDIADOR
+// ==========================================
+
+const embedM = new EmbedBuilder()
+.setTitle("👥 FILA MEDIADOR")
+.setDescription("Entre ou saia da fila.")
+.setColor("#2f3136");
+
+const rowM = new ActionRowBuilder()
+.addComponents(
+
+new ButtonBuilder()
+.setCustomId("entrar_mediador")
+.setLabel("Entrar")
+.setStyle(ButtonStyle.Success),
+
+new ButtonBuilder()
+.setCustomId("sair_mediador")
+.setLabel("Sair")
+.setStyle(ButtonStyle.Danger)
+
+);
+
+await filaMediador.send({
+embeds: [embedM],
+components: [rowM]
+});
+
+// ==========================================
+// PAINEL PIX
+// ==========================================
+
+const embedPix = new EmbedBuilder()
+.setTitle("💸 CONFIGURAR PIX")
+.setDescription("Configure seu pagamento.")
+.setColor("#00ff88");
+
+const rowPix = new ActionRowBuilder()
+.addComponents(
+
+new ButtonBuilder()
+.setCustomId("config_pix")
+.setLabel("Configurar Pagamento")
+.setStyle(ButtonStyle.Primary)
+
+);
+
+await pixCanal.send({
+embeds: [embedPix],
+components: [rowPix]
+});
+
+// ==========================================
+// PAINEL FILA
+// ==========================================
+
+const embedFila = new EmbedBuilder()
+.setTitle("🎰 1X1 MOBILE")
+.setDescription(`
+🧊 Gelo infinito
+💸 Valor: R$5
+👥 Jogadores: 0/2
+`)
+.setColor("#00ff88")
+.setThumbnail(guild.iconURL());
+
+const rowFila = new ActionRowBuilder()
+.addComponents(
+
+new ButtonBuilder()
+.setCustomId("entrar_1x1")
+.setLabel("Entrar")
+.setStyle(ButtonStyle.Success),
+
+new ButtonBuilder()
+.setCustomId("sair_1x1")
+.setLabel("Sair")
+.setStyle(ButtonStyle.Danger)
+
+);
+
+await mobile1.send({
+embeds: [embedFila],
+components: [rowFila]
+});
+
+interaction.editReply({
+content: "✅ Organização criada."
+});
+
+}
+
+// ==========================================
+// /LIMPAR
+// ==========================================
+
+if (
+interaction.isChatInputCommand() &&
+interaction.commandName === "limpar"
+) {
+
+const msgs = await interaction.channel.messages.fetch();
+
+interaction.channel.bulkDelete(msgs);
+
+interaction.channel.send("✅ Canal limpo");
+
+}
+
+// ==========================================
+// ENTRAR FILA
+// ==========================================
+
+if (
+interaction.isButton() &&
+interaction.customId === "entrar_1x1"
+) {
+
+if (filas.mobile1v1.includes(interaction.user.id))
+return interaction.reply({
+content: "❌ Você já está na fila.",
+ephemeral: true
+});
+
+filas.mobile1v1.push(interaction.user.id);
+
+await interaction.reply({
+content: "✅ Você entrou na fila.",
+ephemeral: true
+});
+
+// ==========================================
+// COMPLETAR APOSTA
+// ==========================================
+
+if (filas.mobile1v1.length >= 2) {
+
+const p1 = filas.mobile1v1[0];
+const p2 = filas.mobile1v1[1];
+
+filas.mobile1v1.shift();
+filas.mobile1v1.shift();
 
 const canal = await interaction.guild.channels.create({
-name: `aposta-${Date.now()}`,
-type: ChannelType.GuildText,
-
-parent: interaction.guild.channels.cache.find(
-c => c.name === '💸 APOSTAS'
-)?.id,
-
-permissionOverwrites: [
-{
-id: interaction.guild.id,
-deny: [PermissionsBitField.Flags.ViewChannel]
-},
-...jogadores.map(id => ({
-id,
-allow: [PermissionsBitField.Flags.ViewChannel]
-}))
-]
-})
-
-apostas[canal.id] = jogadores
+name: `🎰-${interaction.user.username}`,
+type: ChannelType.GuildText
+});
 
 const embed = new EmbedBuilder()
-.setTitle('💸 CONFIRMAÇÃO')
+.setTitle("🎰 APOSTA ENCONTRADA")
 .setDescription(`
-${jogadores.map(id => `<@${id}>`).join('\n')}
+👤 <@${p1}>
+👤 <@${p2}>
 
-Confirmem abaixo.
+💸 Valor: R$5
 `)
-.setThumbnail(interaction.guild.iconURL())
-.setColor('#00ff88')
+.setColor("#00ff88");
 
 const row = new ActionRowBuilder()
 .addComponents(
 
 new ButtonBuilder()
-.setCustomId('confirmar')
-.setLabel('Confirmar')
+.setCustomId(`confirmar_${p1}_${p2}`)
+.setLabel("Confirmar")
 .setStyle(ButtonStyle.Success),
 
 new ButtonBuilder()
-.setCustomId('cancelar')
-.setLabel('Cancelar')
+.setCustomId("cancelar_aposta")
+.setLabel("Cancelar")
 .setStyle(ButtonStyle.Danger)
-)
 
-canal.send({
-content: jogadores.map(id => `<@${id}>`).join(' '),
+);
+
+await canal.send({
+content: `<@${p1}> <@${p2}>`,
 embeds: [embed],
 components: [row]
-})
-}
-}
+});
 
-// =========================================
-// SAIR FILA
-// =========================================
-
-if (interaction.customId.startsWith('sair_')) {
-
-const fila = interaction.customId.replace('sair_', 'fila_')
-
-if (!filas[fila]) return
-
-filas[fila] = filas[fila].filter(
-id => id !== interaction.user.id
-)
-
-interaction.reply({
-content: 'Saiu da fila.',
-ephemeral: true
-})
 }
 
-// =========================================
+}
+
+// ==========================================
 // CANCELAR
-// =========================================
+// ==========================================
 
-if (interaction.customId === 'cancelar') {
+if (
+interaction.isButton() &&
+interaction.customId === "cancelar_aposta"
+) {
 
-interaction.reply('Aposta cancelada.')
+await interaction.channel.delete();
 
-setTimeout(() => {
-interaction.channel.delete()
-}, 3000)
 }
 
-// =========================================
+// ==========================================
 // CONFIRMAR
-// =========================================
+// ==========================================
 
-if (interaction.customId === 'confirmar') {
+if (
+interaction.isButton() &&
+interaction.customId.startsWith("confirmar_")
+) {
 
-await interaction.channel.bulkDelete(100)
+await interaction.channel.bulkDelete(100);
+
+const mediadorID = mediadores[0];
 
 const embed = new EmbedBuilder()
-.setTitle('🎮 APOSTA INICIADA')
+.setTitle("🏦 MEDIADOR ENCONTRADO")
 .setDescription(`
-Aguardando mediador.
+👨‍💼 Mediador: <@${mediadorID || interaction.user.id}>
 `)
-.setThumbnail(interaction.guild.iconURL())
-.setColor('#00ff88')
+.setColor("#ffaa00");
 
 const row = new ActionRowBuilder()
 .addComponents(
 
 new ButtonBuilder()
-.setCustomId('pix')
-.setLabel('Enviar PIX')
-.setStyle(ButtonStyle.Success),
-
-new ButtonBuilder()
-.setCustomId('sala')
-.setLabel('Fornecer Sala')
+.setCustomId("fornecer_sala")
+.setLabel("Fornecer Sala")
 .setStyle(ButtonStyle.Primary),
 
 new ButtonBuilder()
-.setCustomId('finalizar')
-.setLabel('Finalizar')
-.setStyle(ButtonStyle.Danger)
-)
+.setCustomId("finalizar_aposta")
+.setLabel("Finalizar")
+.setStyle(ButtonStyle.Success)
 
-interaction.channel.send({
+);
+
+await interaction.channel.send({
 embeds: [embed],
 components: [row]
-})
+});
 
-interaction.reply({
-content: 'Aposta iniciada.',
+}
+
+// ==========================================
+// FILA MEDIADOR
+// ==========================================
+
+if (
+interaction.isButton() &&
+interaction.customId === "entrar_mediador"
+) {
+
+if (!interaction.member.roles.cache.some(
+r => r.name === "MEDIADOR"
+)) return interaction.reply({
+content: "❌ Você não é mediador.",
 ephemeral: true
-})
+});
+
+if (!mediadores.includes(interaction.user.id)) {
+mediadores.push(interaction.user.id);
 }
-
-// =========================================
-// PIX
-// =========================================
-
-if (interaction.customId === 'pix') {
-
-const chave = '11999999999'
-
-const qr = await QRCode.toDataURL(chave)
-
-const embed = new EmbedBuilder()
-.setTitle('💸 PAGAMENTO')
-.setDescription(`
-PIX:
-
-${chave}
-`)
-.setImage(qr)
-.setColor('#00ff88')
 
 interaction.reply({
-embeds: [embed]
-})
+content: "✅ Você entrou na fila mediador.",
+ephemeral: true
+});
+
 }
 
-// =========================================
-// SALA
-// =========================================
+// ==========================================
+// CONFIGURAR PIX
+// ==========================================
 
-if (interaction.customId === 'sala') {
+if (
+interaction.isButton() &&
+interaction.customId === "config_pix"
+) {
 
-const embed = new EmbedBuilder()
-.setTitle('🎮 SALA')
-.setDescription(`
-ID:
-123456
+const modal = new ModalBuilder()
+.setCustomId("modal_pix")
+.setTitle("Configurar PIX");
 
-Senha:
-123456
-`)
-.setColor('#00ff88')
+const chave = new TextInputBuilder()
+.setCustomId("chave")
+.setLabel("Sua chave PIX")
+.setStyle(TextInputStyle.Short);
+
+const nome = new TextInputBuilder()
+.setCustomId("nome")
+.setLabel("Seu nome")
+.setStyle(TextInputStyle.Short);
+
+const cidade = new TextInputBuilder()
+.setCustomId("cidade")
+.setLabel("Sua cidade")
+.setStyle(TextInputStyle.Short);
+
+modal.addComponents(
+new ActionRowBuilder().addComponents(chave),
+new ActionRowBuilder().addComponents(nome),
+new ActionRowBuilder().addComponents(cidade)
+);
+
+await interaction.showModal(modal);
+
+}
+
+// ==========================================
+// MODAL PIX
+// ==========================================
+
+if (
+interaction.type === InteractionType.ModalSubmit &&
+interaction.customId === "modal_pix"
+) {
+
+const chave = interaction.fields.getTextInputValue("chave");
+const nome = interaction.fields.getTextInputValue("nome");
+const cidade = interaction.fields.getTextInputValue("cidade");
+
+pixMediadores.set(interaction.user.id, {
+chave,
+nome,
+cidade
+});
 
 interaction.reply({
-embeds: [embed]
-})
+content: "✅ PIX configurado.",
+ephemeral: true
+});
+
 }
 
-// =========================================
+// ==========================================
+// FORNECER SALA
+// ==========================================
+
+if (
+interaction.isButton() &&
+interaction.customId === "fornecer_sala"
+) {
+
+const modal = new ModalBuilder()
+.setCustomId("modal_sala")
+.setTitle("Fornecer Sala");
+
+const id = new TextInputBuilder()
+.setCustomId("id")
+.setLabel("ID Sala")
+.setStyle(TextInputStyle.Short);
+
+const senha = new TextInputBuilder()
+.setCustomId("senha")
+.setLabel("Senha")
+.setStyle(TextInputStyle.Short);
+
+modal.addComponents(
+new ActionRowBuilder().addComponents(id),
+new ActionRowBuilder().addComponents(senha)
+);
+
+interaction.showModal(modal);
+
+}
+
+// ==========================================
+// MODAL SALA
+// ==========================================
+
+if (
+interaction.type === InteractionType.ModalSubmit &&
+interaction.customId === "modal_sala"
+) {
+
+const id = interaction.fields.getTextInputValue("id");
+const senha = interaction.fields.getTextInputValue("senha");
+
+const embed = new EmbedBuilder()
+.setTitle("🎮 SALA FORNECIDA")
+.setDescription(`
+🆔 ID: ${id}
+🔐 Senha: ${senha}
+`)
+.setColor("#00ff88");
+
+await interaction.reply({
+embeds: [embed]
+});
+
+}
+
+// ==========================================
 // FINALIZAR
-// =========================================
+// ==========================================
 
-if (interaction.customId === 'finalizar') {
+if (
+interaction.isButton() &&
+interaction.customId === "finalizar_aposta"
+) {
 
-const aposta = apostas[interaction.channel.id]
-
-if (!aposta) return
-
-const vencedor = aposta[0]
-const perdedor = aposta[1]
-
-if (!perfis[vencedor]) {
-perfis[vencedor] = {
-wins: 0,
-loses: 0
-}
-}
-
-if (!perfis[perdedor]) {
-perfis[perdedor] = {
-wins: 0,
-loses: 0
-}
-}
-
-perfis[vencedor].wins += 1
-perfis[perdedor].loses += 1
-
-interaction.reply('Aposta finalizada.')
+await interaction.channel.send("🏆 Aposta finalizada.");
 
 setTimeout(() => {
-interaction.channel.delete()
-}, 5000)
-}
-})
+interaction.channel.delete();
+}, 5000);
 
-client.login(process.env.TOKEN)
+}
+
+});
+
+// ==========================================
+// PERFIL
+// ==========================================
+
+client.on("messageCreate", async (message) => {
+
+if (message.author.bot) return;
+
+if (message.content.startsWith(".p")) {
+
+const user =
+message.mentions.users.first() ||
+message.author;
+
+const embed = new EmbedBuilder()
+.setTitle(`📊 Perfil ${user.username}`)
+.setDescription(`
+🏆 Vitórias: 0
+❌ Derrotas: 0
+📈 Winrate: 0%
+`)
+.setThumbnail(user.displayAvatarURL())
+.setColor("#00ff88");
+
+message.reply({
+embeds: [embed]
+});
+
+}
+
+// ==========================================
+// SS MOBILE
+// ==========================================
+
+if (message.content === ".ssmob") {
+
+message.channel.send("📱 SS MOBILE SOLICITADA");
+
+}
+
+// ==========================================
+// SS EMULADOR
+// ==========================================
+
+if (message.content === ".ssemu") {
+
+message.channel.send("💻 SS EMULADOR SOLICITADA");
+
+}
+
+});
+
+client.login(process.env.TOKEN);
